@@ -116,13 +116,50 @@ class PrivateGptUi:
         stereo_width: int,
         notes: str,
     ) -> tuple[str, str]:
+        brightness = int(brightness)
+        movement = int(movement)
+        sub_weight = int(sub_weight)
+        stereo_width = int(stereo_width)
         safe_name = preset_name.strip() or style
-        drive_amount = "Soft" if character == "Clean" else "Medium"
-        if character == "Aggressive":
-            drive_amount = "High"
+        drive_amount_map = {"Clean": "Soft", "Warm": "Medium", "Aggressive": "High"}
+        drive_amount = drive_amount_map.get(character, "Medium")
 
-        osc_a_wave = "Saw" if style in {"Reese Bass", "Lead", "Pad"} else "Square"
-        osc_b_wave = "Saw" if style == "Reese Bass" else "Triangle"
+        style_profiles = {
+            "Reese Bass": {
+                "osc_a_wave": "Saw",
+                "osc_b_wave": "Saw",
+                "lfo_target": "coarse pitch",
+                "fx_hint": "Try a notch EQ cut at 350 Hz to reduce boxiness.",
+            },
+            "Pluck": {
+                "osc_a_wave": "Square",
+                "osc_b_wave": "Triangle",
+                "lfo_target": "filter cutoff",
+                "fx_hint": "Shorten decay for tighter plucks.",
+            },
+            "Pad": {
+                "osc_a_wave": "Saw",
+                "osc_b_wave": "Triangle",
+                "lfo_target": "unison detune",
+                "fx_hint": "Add slow phaser for evolving texture.",
+            },
+            "Lead": {
+                "osc_a_wave": "Saw",
+                "osc_b_wave": "Square",
+                "lfo_target": "fine pitch",
+                "fx_hint": "Add mono + portamento for glide leads.",
+            },
+            "Sub": {
+                "osc_a_wave": "Sine",
+                "osc_b_wave": "Triangle",
+                "lfo_target": "none",
+                "fx_hint": "Keep stereo width low for mono compatibility.",
+            },
+        }
+        profile = style_profiles.get(style, style_profiles["Reese Bass"])
+
+        osc_a_wave = profile["osc_a_wave"]
+        osc_b_wave = profile["osc_b_wave"]
         filter_type = "MG Low 12" if brightness > 55 else "MG Low 24"
         unison = 6 if stereo_width > 60 else 4
         detune = "0.10" if stereo_width > 60 else "0.06"
@@ -144,7 +181,7 @@ class PrivateGptUi:
 #### Envelopes & Modulation
 - **ENV 1:** Attack 2 ms, Decay 350 ms, Sustain 60%, Release 180 ms
 - **ENV 2:** Modulate filter cutoff by {max(20, movement // 2)}%
-- **LFO 1:** Rate 1/4, depth {movement}% on fine pitch for motion
+- **LFO 1:** Rate 1/4, depth {movement}% on {profile["lfo_target"]} for motion
 
 #### FX Chain
 - **Distortion:** Tube, Drive {min(80, 30 + brightness // 2)}%
@@ -156,6 +193,7 @@ class PrivateGptUi:
 #### Performance Tips
 - Use macros: **Macro 1 = Filter**, **Macro 2 = Movement**, **Macro 3 = Width**
 - Add subtle pitch bend (±2) for extra expression
+- {profile["fx_hint"]}
 """
 
         if notes.strip():
