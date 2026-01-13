@@ -105,6 +105,139 @@ class PrivateGptUi:
         path = Path(file.name)
         self._ingest_service.ingest(file_name=path.name, file_data=path)
 
+    def _build_serum_preset_guide(
+        self,
+        preset_name: str,
+        style: str,
+        character: str,
+        brightness: int,
+        movement: int,
+        sub_weight: int,
+        stereo_width: int,
+        notes: str,
+    ) -> tuple[str, str]:
+        brightness = int(brightness)
+        movement = int(movement)
+        sub_weight = int(sub_weight)
+        stereo_width = int(stereo_width)
+        safe_name = preset_name.strip() or style
+        drive_amount_map = {"Clean": "Soft", "Warm": "Medium", "Aggressive": "High"}
+        drive_amount = drive_amount_map.get(character, "Medium")
+
+        style_profiles = {
+            "Reese Bass": {
+                "osc_a_wave": "Saw",
+                "osc_b_wave": "Saw",
+                "lfo_target": "coarse pitch",
+                "fx_hint": "Try a notch EQ cut at 350 Hz to reduce boxiness.",
+            },
+            "Pluck": {
+                "osc_a_wave": "Square",
+                "osc_b_wave": "Triangle",
+                "lfo_target": "filter cutoff",
+                "fx_hint": "Shorten decay for tighter plucks.",
+            },
+            "Pad": {
+                "osc_a_wave": "Saw",
+                "osc_b_wave": "Triangle",
+                "lfo_target": "unison detune",
+                "fx_hint": "Add slow phaser for evolving texture.",
+            },
+            "Lead": {
+                "osc_a_wave": "Saw",
+                "osc_b_wave": "Square",
+                "lfo_target": "fine pitch",
+                "fx_hint": "Add mono + portamento for glide leads.",
+            },
+            "Sub": {
+                "osc_a_wave": "Sine",
+                "osc_b_wave": "Triangle",
+                "lfo_target": "none",
+                "fx_hint": "Keep stereo width low for mono compatibility.",
+            },
+        }
+        profile = style_profiles.get(style, style_profiles["Reese Bass"])
+
+        osc_a_wave = profile["osc_a_wave"]
+        osc_b_wave = profile["osc_b_wave"]
+        filter_type = "MG Low 12" if brightness > 55 else "MG Low 24"
+        unison = 6 if stereo_width > 60 else 4
+        detune = "0.10" if stereo_width > 60 else "0.06"
+
+        guide = f"""### {safe_name} ({style})
+**Target vibe:** {character} | **Brightness:** {brightness}% | **Movement:** {movement}%
+
+#### Oscillators
+- **OSC A:** {osc_a_wave} (Unison {unison}, Detune {detune})
+- **OSC B:** {osc_b_wave} (Level 45%, Warp: FM From A at {movement // 2}%)
+- **SUB:** Sine, Level {max(sub_weight, 30)}%
+- **NOISE:** Bright White, Level {max(10, brightness // 6)}%
+
+#### Filter & Routing
+- **Filter:** {filter_type} at {70 - (brightness // 2)}% cutoff
+- **Drive:** {drive_amount}, **Mix:** 80%
+- Route OSC A + B + SUB into filter for cohesive tone
+
+#### Envelopes & Modulation
+- **ENV 1:** Attack 2 ms, Decay 350 ms, Sustain 60%, Release 180 ms
+- **ENV 2:** Modulate filter cutoff by {max(20, movement // 2)}%
+- **LFO 1:** Rate 1/4, depth {movement}% on {profile["lfo_target"]} for motion
+
+#### FX Chain
+- **Distortion:** Tube, Drive {min(80, 30 + brightness // 2)}%
+- **Compressor:** Multiband (OTT), Amount {min(70, 25 + movement // 2)}%
+- **EQ:** +2 dB at 120 Hz, +3 dB shelf at 6 kHz
+- **Chorus:** Mix {min(45, stereo_width // 2)}%
+- **Reverb:** Size 12%, Mix {min(18, brightness // 6)}%
+
+#### Performance Tips
+- Use macros: **Macro 1 = Filter**, **Macro 2 = Movement**, **Macro 3 = Width**
+- Add subtle pitch bend (±2) for extra expression
+- {profile["fx_hint"]}
+"""
+
+        if notes.strip():
+            guide += f"\n**Producer notes:** {notes.strip()}\n"
+
+        visual = f"""
+<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;">
+  <div style="border:1px solid #d0d7de;border-radius:10px;padding:12px;">
+    <h3 style="margin:0 0 6px 0;">Oscillators</h3>
+    <p style="margin:0;">A: {osc_a_wave} • B: {osc_b_wave} • Sub {sub_weight}%</p>
+    <div style="margin-top:8px;background:#e8eef6;border-radius:8px;height:10px;">
+      <div style="width:{brightness}%;background:#6f63ff;height:10px;border-radius:8px;"></div>
+    </div>
+    <small>Brightness</small>
+  </div>
+  <div style="border:1px solid #d0d7de;border-radius:10px;padding:12px;">
+    <h3 style="margin:0 0 6px 0;">Filter</h3>
+    <p style="margin:0;">{filter_type} • Drive {drive_amount}</p>
+    <div style="margin-top:8px;background:#e8eef6;border-radius:8px;height:10px;">
+      <div style="width:{movement}%;background:#00a884;height:10px;border-radius:8px;"></div>
+    </div>
+    <small>Movement</small>
+  </div>
+  <div style="border:1px solid #d0d7de;border-radius:10px;padding:12px;">
+    <h3 style="margin:0 0 6px 0;">Stereo</h3>
+    <p style="margin:0;">Width {stereo_width}% • Unison {unison}</p>
+    <div style="margin-top:8px;background:#e8eef6;border-radius:8px;height:10px;">
+      <div style="width:{stereo_width}%;background:#ff7a59;height:10px;border-radius:8px;"></div>
+    </div>
+    <small>Width</small>
+  </div>
+  <div style="border:1px solid #d0d7de;border-radius:10px;padding:12px;">
+    <h3 style="margin:0 0 6px 0;">Sub Energy</h3>
+    <p style="margin:0;">{sub_weight}% weight</p>
+    <div style="margin-top:8px;background:#e8eef6;border-radius:8px;height:10px;">
+      <div style="width:{sub_weight}%;background:#111827;height:10px;border-radius:8px;"></div>
+    </div>
+    <small>Low End</small>
+  </div>
+</div>
+"""
+
+        return visual, guide
+
     def _build_ui_blocks(self) -> gr.Blocks:
         logger.debug("Creating the UI blocks")
         with gr.Blocks(
@@ -124,51 +257,109 @@ class PrivateGptUi:
             with gr.Row():
                 gr.HTML(f"<div class='logo'/><img src={logo_svg} alt=PrivateGPT></div")
 
-            with gr.Row():
-                with gr.Column(scale=3, variant="compact"):
-                    mode = gr.Radio(
-                        ["Query Docs", "Search in Docs", "LLM Chat"],
-                        label="Mode",
-                        value="Query Docs",
-                    )
-                    upload_button = gr.components.UploadButton(
-                        "Upload a File",
-                        type="file",
-                        file_count="single",
-                        size="sm",
-                    )
-                    ingested_dataset = gr.List(
-                        self._list_ingested_files,
-                        headers=["File name"],
-                        label="Ingested Files",
-                        interactive=False,
-                        render=False,  # Rendered under the button
-                    )
-                    upload_button.upload(
-                        self._upload_file,
-                        inputs=upload_button,
-                        outputs=ingested_dataset,
-                    )
-                    ingested_dataset.change(
-                        self._list_ingested_files,
-                        outputs=ingested_dataset,
-                    )
-                    ingested_dataset.render()
-                with gr.Column(scale=7):
-                    _ = gr.ChatInterface(
-                        self._chat,
-                        chatbot=gr.Chatbot(
-                            label=f"LLM: {settings.llm.mode}",
-                            show_copy_button=True,
-                            render=False,
-                            avatar_images=(
-                                None,
-                                "https://lh3.googleusercontent.com/drive-viewer/AK7aPa"
-                                "AicXck0k68nsscyfKrb18o9ak3BSaWM_Qzm338cKoQlw72Bp0UKN84"
-                                "IFZjXjZApY01mtnUXDeL4qzwhkALoe_53AhwCg=s2560",
-                            ),
-                        ),
-                        additional_inputs=[mode, upload_button],
+            with gr.Tabs():
+                with gr.TabItem("Chat"):
+                    with gr.Row():
+                        with gr.Column(scale=3, variant="compact"):
+                            mode = gr.Radio(
+                                ["Query Docs", "Search in Docs", "LLM Chat"],
+                                label="Mode",
+                                value="Query Docs",
+                            )
+                            upload_button = gr.components.UploadButton(
+                                "Upload a File",
+                                type="file",
+                                file_count="single",
+                                size="sm",
+                            )
+                            ingested_dataset = gr.List(
+                                self._list_ingested_files,
+                                headers=["File name"],
+                                label="Ingested Files",
+                                interactive=False,
+                                render=False,  # Rendered under the button
+                            )
+                            upload_button.upload(
+                                self._upload_file,
+                                inputs=upload_button,
+                                outputs=ingested_dataset,
+                            )
+                            ingested_dataset.change(
+                                self._list_ingested_files,
+                                outputs=ingested_dataset,
+                            )
+                            ingested_dataset.render()
+                        with gr.Column(scale=7):
+                            _ = gr.ChatInterface(
+                                self._chat,
+                                chatbot=gr.Chatbot(
+                                    label=f"LLM: {settings.llm.mode}",
+                                    show_copy_button=True,
+                                    render=False,
+                                    avatar_images=(
+                                        None,
+                                        "https://lh3.googleusercontent.com/drive-viewer/AK7aPa"
+                                        "AicXck0k68nsscyfKrb18o9ak3BSaWM_Qzm338cKoQlw72Bp0UKN84"
+                                        "IFZjXjZApY01mtnUXDeL4qzwhkALoe_53AhwCg=s2560",
+                                    ),
+                                ),
+                                additional_inputs=[mode, upload_button],
+                            )
+                with gr.TabItem("Serum Preset Lab"):
+                    with gr.Row():
+                        with gr.Column(scale=4):
+                            gr.Markdown(
+                                "Design detailed Serum presets with visual guidance."
+                            )
+                            preset_name = gr.Textbox(
+                                label="Preset name",
+                                placeholder="e.g., Reese Bass - Night Drive",
+                            )
+                            style = gr.Dropdown(
+                                ["Reese Bass", "Pluck", "Pad", "Lead", "Sub"],
+                                value="Reese Bass",
+                                label="Preset style",
+                            )
+                            character = gr.Radio(
+                                ["Clean", "Warm", "Aggressive"],
+                                value="Warm",
+                                label="Character",
+                            )
+                            brightness = gr.Slider(
+                                0, 100, value=60, step=5, label="Brightness"
+                            )
+                            movement = gr.Slider(
+                                0, 100, value=45, step=5, label="Movement"
+                            )
+                            sub_weight = gr.Slider(
+                                0, 100, value=55, step=5, label="Sub weight"
+                            )
+                            stereo_width = gr.Slider(
+                                0, 100, value=55, step=5, label="Stereo width"
+                            )
+                            notes = gr.Textbox(
+                                label="Extra notes",
+                                placeholder="e.g., add glide, darker top end",
+                            )
+                            build_button = gr.Button(
+                                "Generate preset guide", variant="primary"
+                            )
+                        with gr.Column(scale=6):
+                            preset_visual = gr.HTML()
+                            preset_guide = gr.Markdown()
+                    build_button.click(
+                        self._build_serum_preset_guide,
+                        inputs=[
+                            preset_name,
+                            style,
+                            character,
+                            brightness,
+                            movement,
+                            sub_weight,
+                            stereo_width,
+                            notes,
+                        ],
+                        outputs=[preset_visual, preset_guide],
                     )
         return blocks
 
