@@ -433,15 +433,20 @@ class PrivateGptUi:
                     with gr.Column():
                         gr.Markdown(
                             "### Build a sound in **Serum 2**\n"
-                            "Type a sound name (e.g. `Reese bass`) to get a step-by-step visual guide."
+                            "Search for a sound (e.g. `Reese bass`) to get a step-by-step visual guide."
                         )
                         with gr.Row():
-                            sound_input = gr.Textbox(
-                                label="Sound name",
-                                placeholder="Reese bass",
+                            sound_input = gr.Dropdown(
+                                label="Sound search",
+                                choices=sorted(SERUM_GUIDES.keys()),
+                                value="reese bass",
+                                allow_custom_value=True,
+                                filterable=True,
                                 scale=3,
                             )
-                            build_button = gr.Button("Generate Guide", variant="primary")
+                            build_button = gr.Button(
+                                "Generate Guide", variant="primary"
+                            )
                         guide_output = gr.HTML(
                             value=self._render_serum_guide("Reese bass")
                         )
